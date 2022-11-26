@@ -215,9 +215,9 @@ int connect_server(char *url, char *user, char *password, char *id){
         return -1;
     }
     
-    snprintf(lwt_topic_buff, LWT_TOPIC_LEN, "/%sradout", id);
-    snprintf(intopicbase, IN_TOPIC_LEN, "/%sradin", id);
-    snprintf(outtopicbase, OUT_TOPIC_LEN,  "/%sradout", id);
+    snprintf(lwt_topic_buff, LWT_TOPIC_LEN, "%sradout", id);
+    snprintf(intopicbase, IN_TOPIC_LEN, "%sradin", id);
+    snprintf(outtopicbase, OUT_TOPIC_LEN,  "%sradout", id);
 
     esp_mqtt_client_config_t settings = {
 #if defined(CONFIG_MQTT_SECURITY_ON)
