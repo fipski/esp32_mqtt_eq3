@@ -180,12 +180,17 @@ static void data_cb(esp_mqtt_event_handle_t event){
 }
 
 /* Publish a status message */
-int send_trv_status(char *status){
+int send_trv_status(char *status, char* mac_addr){
 	ESP_LOGI(MQTT_TAG, "send_trv_status");
     if(repclient != NULL){
         char topic[38];
-        sprintf(topic, "%s/status", outtopicbase);
-        esp_mqtt_client_publish(repclient, topic, status, strlen(status), 0, 0);
+        if (mac_addr != NULL) {
+            sprintf (topic, "%s/status/%s", outtopicbase, mac_addr);
+            esp_mqtt_client_publish (repclient, topic, status, strlen (status), 0, 0);
+        } else {
+            ESP_LOGW (MQTT_TAG, "NULL mac address");
+        }
+        
     }
     return 0;
 }

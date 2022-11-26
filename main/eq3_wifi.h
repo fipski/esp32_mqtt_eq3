@@ -8,7 +8,7 @@ typedef enum {MQTT_NOT_CONNECTED = 0, MQTT_CONNECTED, MQTT_CONFIG_ERROR}mqttconn
 mqttconnstate ismqttconnected(void);
 
 int send_device_list(char *list);
-int send_trv_status(char *status);
+int send_trv_status(char *status, char* mac_addr);
 
 int connect_server(char *url, char *user, char *password, char *id);
 
