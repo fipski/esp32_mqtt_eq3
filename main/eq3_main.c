@@ -757,6 +757,8 @@ int handle_request(char *cmdstr){
     unsigned char cmdparms[MAX_CMD_BYTES];  
     bool start = false;
 
+    ESP_LOGI (GATTC_TAG, "Handle command %s", cmdptr);
+    
     // Skip the bleaddr
     while(*cmdptr != 0 && !isxdigit((int)*cmdptr))
         cmdptr++;
@@ -776,7 +778,7 @@ int handle_request(char *cmdstr){
         }
         /* Numerals following the command are used to set the time. If there are none the
          * valve time will be set according to the ntp time if is is synchronised */
-        if(isalnum((int)cmdptr[8])){
+        if (isalnum ((int)cmdptr[8]) && (strlen (cmdptr + 8) < 12)) {
             char hexdigit[3];
             int dig;
             hexdigit[2] = 0;
@@ -860,7 +862,22 @@ int handle_request(char *cmdstr){
             return -1;
         }
     }
-    if(start == false && strncmp((const char *)cmdptr, "off", 3) == 0){
+    if (start == false && strncmp ((const char*)cmdptr, "mode", 4) == 0) {
+        start = true;
+        cmdptr += 5;
+        ESP_LOGI (GATTC_TAG, "Command mode: \"%s\"", cmdptr);
+        if (strncmp ((const char*)cmdptr, "auto", 4) == 0) {
+            command = EQ3_AUTO;
+        }else if (strncmp ((const char*)cmdptr, "off", 3) == 0) {
+            command = EQ3_SETTEMP;
+            cmdparms[0] = 0x09; /* (30 << 1) */
+        } else if (strncmp ((const char*)cmdptr, "heat", 4) == 0) {
+            command = EQ3_MANUAL;
+        } else {
+            start = false;
+        }
+    }
+    if (start == false && strncmp ((const char*)cmdptr, "off", 3) == 0) {
         /* 'Off' is achieved by setting the required temperature to 4.5 */
         start = true;
         command = EQ3_SETTEMP;

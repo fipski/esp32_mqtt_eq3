@@ -140,15 +140,16 @@ static void connected_cb(esp_mqtt_event_handle_t event){
 /* MQTT data received (subscribed topic receives data) */
 static void data_cb(esp_mqtt_event_handle_t event){
     esp_mqtt_client_handle_t client = event->client;
-
+    char* topic = malloc (event->topic_len + 1);
     bool trvcmd = false, trvscan = false;
     if(event->current_data_offset == 0) {
-        char *topic = malloc(event->topic_len + 1);
         memcpy(topic, event->topic, event->topic_len);
         topic[event->topic_len] = 0;
         /* /trv is a command to an EQ3 valve */
-        if(strstr(topic, "/trv") != NULL)
+        if (strstr (topic, "/trv") != NULL) {
             trvcmd = true;
+            ESP_LOGI (MQTT_TAG, "TRV command: %s", topic);
+        }
         /* /scan is a request to run a BLE scan for EQ3 valves */
         if(strstr(topic, "/scan") != NULL)
             trvscan = true;
@@ -161,18 +162,96 @@ static void data_cb(esp_mqtt_event_handle_t event){
             esp_mqtt_client_publish(client, rsptopic, msg, strlen(msg), 0, 0);
         }
         ESP_LOGI(MQTT_TAG, "[APP] Publish topic: %s", topic);
-        free(topic);
     }
 
     if(trvcmd == true){
-        char *data = malloc(event->data_len + 1);
-        memcpy(data, event->data, event->data_len);
-        data[event->data_len] = 0;
-        ESP_LOGI(MQTT_TAG, "Handle trv msg");
-        handle_request(data);
-        free(data);
+        //char *data = malloc(event->data_len + 1);
+        //ESP_LOGI (MQTT_TAG, "Topic: %s, data: %s", topic, event->data);
+        const int MAX_DATA_LEN = 80;
+        char data[MAX_DATA_LEN];
+        memset (data, 0, sizeof (data));
+        char* topicptr = topic;
+        //ESP_LOGI (MQTT_TAG, "topicptr = %c", *topicptr);
+        // while (*topicptr != 0 && !isxdigit ((int)*topicptr)) {
+        //     ESP_LOGI (MQTT_TAG, "topicptr = %c", *topicptr);
+        //     topicptr++;
+        // }
+        int dataidx = 0;
+        bool dataerror = false;
+        topicptr = strstr (topicptr, "/trv/");
+        if (topicptr) {
+            topicptr += 5;
+            //ESP_LOGI (MQTT_TAG, "Found string \"/trv/\" %s", topicptr);
+        } else {
+            dataerror = true;
+        }
+
+        while (*topicptr != '/' && *topicptr != 0 && !dataerror) {
+            //ESP_LOGI (MQTT_TAG, "topicptr = %c", *topicptr);
+            if ((isxdigit (*topicptr) || *topicptr == ':') && dataidx < MAX_DATA_LEN - 1) {
+                data[dataidx] = *topicptr;
+                dataidx++;
+                topicptr++;
+            } else {
+                dataerror = true;
+            }
+        }
+
+        if (dataidx != 17) {
+            dataerror = true;
+            ESP_LOGI (MQTT_TAG, "Wrong address length: %d", dataidx);
+        }
+        
+        // ESP_LOGI (MQTT_TAG, "Added address %s idx %d", data, dataidx);
+
+        if (*topicptr == '/') {
+            topicptr++;
+        } else {
+            dataerror = true;
+        }
+        
+        if (!dataerror && dataidx < MAX_DATA_LEN - 1) {
+            data[dataidx] = ' ';
+            dataidx++;
+        } else {
+            dataerror = true;
+        }
+
+        // ESP_LOGI (MQTT_TAG, "Added space %s idx %d", data, dataidx);
+
+        while (*topicptr != '\0' && !dataerror && dataidx < MAX_DATA_LEN - 1) {
+            data[dataidx] = *topicptr;
+            dataidx++;
+            topicptr++;
+        }
+
+        if (event->data_len > 0) {
+            if (!dataerror && dataidx < MAX_DATA_LEN - 1) {
+                data[dataidx] = ' ';
+                dataidx++;
+            } else {
+                dataerror = true;
+            }
+        }
+
+        ESP_LOGI (MQTT_TAG, "Added command \"%s\" idx %d", data, dataidx);
+
+        if (!dataerror && dataidx < MAX_DATA_LEN - 1 - event->data_len) {
+            //memcpy ((void*)&(data[dataidx]), (void*)event->data, event->data_len);
+            int i = 0;
+            for (i = 0; i < event->data_len; i++) {
+                data[dataidx] = event->data[i];
+                dataidx++;
+            }
+            data[dataidx] = 0;
+            ESP_LOGI (MQTT_TAG, "Handle trv mqtt msg \"%s\"", data);
+            handle_request (data);
+        }
+        //free(data);
     }
     
+    free (topic);
+
     if(trvscan == true){
         start_scan();
     }
