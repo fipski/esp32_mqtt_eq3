@@ -761,7 +761,7 @@ static int setStatusLed(int on) {
 #if defined(CONFIG_ENABLE_STATUS_LED) && defined(CONFIG_STATUS_LED_GPIO)
     gpio_pad_select_gpio(CONFIG_STATUS_LED_GPIO);
     gpio_set_direction(CONFIG_STATUS_LED_GPIO, GPIO_MODE_OUTPUT);
-    return gpio_set_level(CONFIG_STATUS_LED_GPIO, on);
+    return gpio_set_level(CONFIG_STATUS_LED_GPIO, !on);
 #else
     return 1; 
 #endif
