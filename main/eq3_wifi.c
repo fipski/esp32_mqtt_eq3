@@ -135,6 +135,24 @@ static void connected_cb(esp_mqtt_event_handle_t event){
         free(devlist);
         devlist = NULL;
     }
+
+    struct found_device* eq3_devices;
+    int num_eq3;
+    enum eq3_scanstate result = EQ3_NO_SCAN_RESULTS;
+    while (result != EQ3_SCAN_COMPLETE) {
+        result = eq3gap_get_device_list (&eq3_devices, &num_eq3);
+        if (result == EQ3_SCAN_COMPLETE) {
+            struct found_device* eq3_device = eq3_devices;
+            ESP_LOGI (MQTT_TAG, "Found %d devices", num_eq3);
+            while (eq3_device != NULL) {
+                ESP_LOGI (MQTT_TAG, "EQ3: %02X:%02X:%02X:%02X:%02X:%02X", eq3_device->bda[0], eq3_device->bda[1], eq3_device->bda[2], eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
+                //TODO Add HA autodiscovery message
+                eq3_device = eq3_device->next;
+            }
+        }
+        vTaskDelay (pdMS_TO_TICKS(100));
+    }
+    
 }
 
 /* MQTT data received (subscribed topic receives data) */
