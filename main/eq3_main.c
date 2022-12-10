@@ -486,6 +486,7 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         char statrep[240];
         char mac_addr[20];
         int statidx = 0;
+        float temperature = 0;
 
         statidx += sprintf (&statrep[statidx], "{");
         sprintf (mac_addr, "%02X:%02X:%02X:%02X:%02X:%02X", gl_profile_tab[PROFILE_A_APP_ID].remote_bda[0], gl_profile_tab[PROFILE_A_APP_ID].remote_bda[1],
@@ -499,8 +500,9 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                 if(tempval & 0x01)
                     temphalf = 5;
                 tempval >>= 1;
-                ESP_LOGI(GATTC_TAG, "eq3 settemp is %d.%d C", tempval, temphalf);
-                statidx += sprintf(&statrep[statidx], "\"temp\":\"%d.%d\"", tempval, temphalf);
+                ESP_LOGI (GATTC_TAG, "eq3 settemp is %d.%d C", tempval, temphalf);
+                temperature = (float)tempval + (float)temphalf/10.0;
+                statidx += sprintf (&statrep[statidx], "\"temp\":\"%d.%d\"", tempval, temphalf);
             }
             if(p_data->notify.value_len >= 14){
                 int8_t offsetval, offsethalf = 0;
@@ -516,7 +518,7 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
             if(p_data->notify.value_len > 3){
                 tempval = p_data->notify.value[3];
                 ESP_LOGI(GATTC_TAG, "eq3 valve %d%% open\n", tempval);
-                statidx += sprintf(&statrep[statidx], ",\"valve\":\"%d%% open\"", tempval);
+                statidx += sprintf(&statrep[statidx], ",\"valve\":\"%d\"", tempval);
             }
             if(p_data->notify.value_len > 2){
                 tempval = p_data->notify.value[2];
@@ -531,7 +533,18 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                     ESP_LOGI(GATTC_TAG, "eq3 set auto");
                     statidx += sprintf(&statrep[statidx], "\"auto\"");
                 }
-                statidx += sprintf(&statrep[statidx], ",\"boost\":");
+                statidx += sprintf (&statrep[statidx], ",\"mode_ha\":");
+                if (temperature < 5) {
+                    ESP_LOGI (GATTC_TAG, "eq3 HA mode is OFF");
+                    statidx += sprintf (&statrep[statidx], "\"off\"");
+                } else if ((tempval & MANUAL) && (temperature >= 5)) {
+                    ESP_LOGI (GATTC_TAG, "eq3 HA mode is HEAT");
+                    statidx += sprintf (&statrep[statidx], "\"heat\"");
+                } else {
+                    ESP_LOGI (GATTC_TAG, "eq3 HA mode is AUTO");
+                    statidx += sprintf (&statrep[statidx], "\"auto\"");
+                }
+                statidx += sprintf (&statrep[statidx], ",\"boost\":");
                 if(tempval & BOOST){
                     ESP_LOGI(GATTC_TAG, "eq3 boost");
                     statidx += sprintf(&statrep[statidx], "\"active\"");
