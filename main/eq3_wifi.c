@@ -34,6 +34,7 @@
 #include "eq3_main.h"
 #include "eq3_wifi.h"
 #include "eq3_gap.h"
+#include "eq3_ha_discovery.h"
 
 static const char *MQTT_TAG = "mqtt";
 
@@ -146,7 +147,40 @@ static void connected_cb(esp_mqtt_event_handle_t event){
             ESP_LOGI (MQTT_TAG, "Found %d devices", num_eq3);
             while (eq3_device != NULL) {
                 ESP_LOGI (MQTT_TAG, "EQ3: %02X:%02X:%02X:%02X:%02X:%02X", eq3_device->bda[0], eq3_device->bda[1], eq3_device->bda[2], eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
-                //TODO Add HA autodiscovery message
+                char* payload;
+                char topic[55];
+
+                //Home Assistant autodiscovery message for climate device
+
+                cJSON* ha_therm_payload = generate_ha_therm_payload (eq3_device->bda);
+                payload = cJSON_Print (ha_therm_payload);
+                ESP_LOGI (MQTT_TAG, "Therm Payload: %s", payload);
+                snprintf (topic, sizeof (topic), "homeassistant/climate/eq3_%02X%02X%02X_thermostat/config", eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
+                ESP_LOGI (MQTT_TAG, "Therm topic: %s", topic);
+                esp_mqtt_client_publish (repclient, topic, payload, strlen (payload), 0, 1); // retain on
+                cJSON_free (ha_therm_payload);
+                free (payload);
+
+                //Home Assistant autodiscovery message for valve position sensor
+                cJSON* ha_valve_payload = generate_ha_valve_payload (eq3_device->bda);
+                payload = cJSON_Print (ha_valve_payload);
+                ESP_LOGI (MQTT_TAG, "Valve Payload: %s", payload);
+                snprintf (topic, sizeof (topic), "homeassistant/sensor/eq3_%02X%02X%02X_valve/config", eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
+                ESP_LOGI (MQTT_TAG, "Valve topic: %s", topic);
+                esp_mqtt_client_publish (repclient, topic, payload, strlen (payload), 0, 1); // retain on
+                cJSON_free (ha_valve_payload);
+                free (payload);
+
+                //Home Assistant autodiscovery message for valve position sensor
+                cJSON* ha_battery_payload = generate_ha_battery_payload (eq3_device->bda);
+                payload = cJSON_Print (ha_battery_payload);
+                ESP_LOGI (MQTT_TAG, "Battery Payload: %s", payload);
+                snprintf (topic, sizeof (topic), "homeassistant/binary_sensor/eq3_%02X%02X%02X_battery/config", eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
+                ESP_LOGI (MQTT_TAG, "Battery topic: %s", topic);
+                esp_mqtt_client_publish (repclient, topic, payload, strlen (payload), 0, 1); // retain on
+                cJSON_free (ha_battery_payload);
+                free (payload);
+
                 eq3_device = eq3_device->next;
             }
         }
