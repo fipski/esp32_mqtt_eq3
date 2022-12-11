@@ -10,7 +10,7 @@ Main changes from parent are:
     - MQTT topics have been reworked for easier integration
     - MQTT discovery messages are sent automatically on start to let register the valve into Home Assistant automatically.
 
----
+----
 
 EQ-3 radiator valves work really well for a home-automation heating system. They are fully configurable vie BLE as well as their front-panel. There are more features on the valves than the calorBT app makes available.
 
@@ -41,19 +41,13 @@ The main problem with centrally controlling EQ-3 valves is the limited range of 
 
 ## Description
 
-This application acts as a hub and uses BLE to communicate with EQ-3 TRVs and makes configuration possible via MQTT over WiFi. 
+This application acts as a hub and uses BLE to communicate with EQ-3 TRVs and makes configuration possible via MQTT over WiFi.
 
 When using calorBT some very basic security is employed. This security however lives in the calorBT application and not in the valve. The EQ-3 valves do not require any authentication from the BLE client to obey commands.
 
 ### Configuration
 
-To quickly flash the application to a ESP32, download the latest release from <https://github.com/gmag11/esp32_mqtt_eq3/releases> and flash it via esptool, using
-
-```bash
-esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 115200 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 40m --flash_size detect 0xd000 ota_data_initial.bin 0x1000 bootloader.bin 0x10000 esp32_mqtt_eq3.bin 0x8000 partition-table.bin
-```
-
-in a Linux terminal with [esptool](https://github.com/espressif/esptool) installed.
+To quickly flash the application to a ESP32, download the latest release from <https://github.com/gmag11/esp32_mqtt_eq3/releases> and flash it via esptool, using `esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 115200 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 40m --flash_size detect 0xd000 ota_data_initial.bin 0x1000 bootloader.bin 0x10000 eq3_trv_control.bin 0x8000 partitions.bin` in a Linux terminal with [esptool](https://github.com/espressif/esptool) installed.
 
 On first use the ESP32 will start in access-point mode appearing as 'HeatingController'. Connect to this AP (password is 'password' or unset) and browse to the device IP address (192.168.4.1). The device configuration parameters can be set here:  
 
@@ -64,7 +58,7 @@ On first use the ESP32 will start in access-point mode appearing as 'HeatingCont
 | mqtturl | url to access the mqtt broker<br>allowed values:<br><br>- IP-Address, Hostname or Domainname only ("mqtt://" is used in this case)<br>- URL with scheme mqtt, ws, wss, tco, ssl (only mqtt is tested yet)| 192.168.0.2<br>mqtt://192.168.0.2<br>ws://192.168.0.2 |
 | mqttuser | mqtt broker username | |
 | mqttpass | mqtt broker password | |
-| mqttid | the unique id for this device to use with the mqtt broker __(max 20 characters)__ | livingroom |
+| mqttid | the unique id for this device to use with the mqtt broker **(max 20 characters)** | livingroom |
 | ntp enabled | enable network time protocol support | |
 | ntp server1 | url for ntp server | pool.ntp.org |
 | ntp server2 | url for ntp server | europe.pool.ntp.org |
@@ -117,7 +111,7 @@ where the device is indicated by its bluetooth address (MAC)
 | on | opens the valve fully (lcd display 'on') | -none - | *`<mqttid>radin/trv/<eq3-address>/on`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/on` | v1.49 |
 | off | closes the valve fully (lcd display 'off') | -none - | *`<mqttid>radin/trv/<eq3-address>/off`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/off` | v1.49 |
 
-In response to every successful command a status message is published to `<mqttid>radout/status/<address>` containing json-encoded details of address, temperature set point, valve open percentage, mode, boost state, lock state and battery state. 
+In response to every successful command a status message is published to `<mqttid>radout/status/<address>` containing json-encoded details of address, temperature set point, valve open percentage, mode, boost state, lock state and battery state.
 
 This can be used as an acknowledgement of a successful command to remote mqtt clients.
 
@@ -167,7 +161,7 @@ There is no specific command to poll the status of the valve but using any of th
 
 Note 1: sending settime command does not affect settings in valve and causes a status message
 
-Note 2: It has been observed that using unboost to poll a valve can result in the valve opening as if in boost mode but without reporting boost mode active on the display or status. 
+Note 2: It has been observed that using unboost to poll a valve can result in the valve opening as if in boost mode but without reporting boost mode active on the display or status.
 It is probably not advisable to poll the valve with the unboost command.
 
 ### MQTT Topics
@@ -187,7 +181,7 @@ Software OTA feature can be used to apply new software binary files available in
 ## Usage Summary
 
 On first boot this application uses Kolbans bootwifi code to create the wifi AP.  
-Once configuration is complete and on subsequent boots the configured details are used for connection. If connection fails the application reverts to AP mode where the web interface is used to reconfigure. 
+Once configuration is complete and on subsequent boots the configured details are used for connection. If connection fails the application reverts to AP mode where the web interface is used to reconfigure.
 
 ## Home Assistant example card
 
@@ -215,10 +209,11 @@ cards:
 
 ## Developer notes
 
-web server is part of Mongoose - https://github.com/cesanta/mongoose
+web server is part of Mongoose - [https://github.com/cesanta/mongoose](https://github.com/cesanta/mongoose)
 
 ## Testing
-```
+
+```bash
 # Connect to a mosquitto broker:
 
 mosquitto_sub -h 127.0.0.1 -p 1883 -t "<mqttid>radout/devlist"  # Will display a list of discovered EQ-3 TRVs  
@@ -228,7 +223,7 @@ mosquitto_pub -h 127.0.0.1 -p 1883 -t "<mqttid>radin/trv/ab:cd:ef:gh:ij:kl/sette
 
 ## Supported Models
 
-*possible incomplete list because of rebranding eq-3 thermostats*
+Note: *possible incomplete list because of rebranding eq-3 thermostats*
 
 | Name | Model Name | Factory | Factory Model Number | Remark | Verified |
 | ------------- | ------------- | ------------- | ------------- | ------------- | :-------------: |
@@ -249,14 +244,14 @@ mosquitto_pub -h 127.0.0.1 -p 1883 -t "<mqttid>radin/trv/ab:cd:ef:gh:ij:kl/sette
 
 ## Credits
 
-* Based on the amazing work of the [ESP-IDF](https://github.com/espressif/esp-idf) project
-* and the reverse engineering of [@Heckie75](https://github.com/Heckie75/eQ-3-radiator-thermostat/blob/master/eq-3-radiator-thermostat-api.md)
+- Based on the amazing work of the [ESP-IDF](https://github.com/espressif/esp-idf) project
+- and the reverse engineering of [@Heckie75](https://github.com/Heckie75/eQ-3-radiator-thermostat/blob/master/eq-3-radiator-thermostat-api.md)
 
 ### Source and continuative reverse engineering by
 
-* Paul ([@softypit](https://github.com/softypit))
-* [@ul-gh](https://github.com/ul-gh)
-* Peter Becker ([@floyddotnet](https://github.com/floyddotnet))
+- Paul ([@softypit](https://github.com/softypit))
+- [@ul-gh](https://github.com/ul-gh)
+- Peter Becker ([@floyddotnet](https://github.com/floyddotnet))
 
 ### Notes
 
@@ -268,6 +263,6 @@ A timeout has been added to BLE operations to attempt to prevent the 'freeze-up'
 
 menuconfig options allow setting of some parameters at compile time.
 
-* The boot-mode GPIO pin (normally a button on GPIO 0 on many ESP32 platforms) used to force the device into AP mode at boot.
-* Status LED GPIO which indicates if the device is in AP mode.
-* Password for AP mode (enables WPA2PSK) to prevent unwanted access should the device go into AP mode when it is unable to connect to its configured Access Point.
+- The boot-mode GPIO pin (normally a button on GPIO 0 on many ESP32 platforms) used to force the device into AP mode at boot.
+- Status LED GPIO which indicates if the device is in AP mode.
+- Password for AP mode (enables WPA2PSK) to prevent unwanted access should the device go into AP mode when it is unable to connect to its configured Access Point.
