@@ -182,6 +182,30 @@ Software OTA feature can be used to apply new software binary files available in
 On first boot this application uses Kolbans bootwifi code to create the wifi AP.  
 Once configuration is complete and on subsequent boots the configured details are used for connection. If connection fails the application reverts to AP mode where the web interface is used to reconfigure. 
 
+## Home Assistant example card
+
+This is the card that I've configured for EQ-3 valve control with this firmware
+
+![Home assistant example card](HAcard.png)
+
+Needed code to define is like this:
+
+```yaml
+type: vertical-stack
+cards:
+  - type: custom:better-thermostat-ui-card
+    entity: climate.eq3_xxxxxx_thermostat
+    disable_window: true
+    disable_summer: true
+    disable_eco: true
+  - type: custom:bar-card
+    entities:
+      - entity: sensor.eq3_xxxxxx_valve
+    entity_row: true
+  - type: entity
+    entity: binary_sensor.eq3_xxxxxx_battery
+```
+
 ## Developer notes
 
 web server is part of Mongoose - https://github.com/cesanta/mongoose
