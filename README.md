@@ -2,11 +2,15 @@
 
 ![tested on ESP-WROOM-32](https://img.shields.io/badge/tested--on-ESP--WROOM--32-brightgreen.svg)
 
-This repository is a fork of <https://github.com/softypit/esp32_mqtt_eq3>. My target is to make this to be integrated easily on Home Assistant. My repect to @softypit for making such good gateway for EQ-3 valves.
+----
+
+**This repository is a fork of <https://github.com/softypit/esp32_mqtt_eq3>. My target is to make this to be integrated easily on Home Assistant. My repect to @softypit for making such good gateway for EQ-3 valves.**
 
 Main changes from parent are:
     - MQTT topics have been reworked for easier integration
     - MQTT discovery messages are sent automatically on start to let register the valve into Home Assistant automatically.
+
+---
 
 EQ-3 radiator valves work really well for a home-automation heating system. They are fully configurable vie BLE as well as their front-panel. There are more features on the valves than the calorBT app makes available.
 
