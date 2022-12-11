@@ -4,6 +4,7 @@
 #
 
 PROJECT_NAME := esp32_mqtt_eq3
+PROJECT_VER := 1.70
 
 COMPONENT_ADD_INCLUDEDIRS := components/include
 
