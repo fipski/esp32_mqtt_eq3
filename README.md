@@ -31,6 +31,7 @@ The main problem with centrally controlling EQ-3 valves is the limited range of 
     - [MQTT Topics](#mqtt-topics)
     - [Web interface](#web-interface)
   - [Usage Summary](#usage-summary)
+  - [Home Assistant automatic integration](#home-assistant-automatic-integration)
   - [Home Assistant example card](#home-assistant-example-card)
   - [Developer notes](#developer-notes)
   - [Testing](#testing)
@@ -189,6 +190,16 @@ Software OTA feature can be used to apply new software binary files available in
 
 On first boot this application uses Kolbans bootwifi code to create the wifi AP.  
 Once configuration is complete and on subsequent boots the configured details are used for connection. If connection fails the application reverts to AP mode where the web interface is used to reconfigure.
+
+## Home Assistant automatic integration
+
+After reboot firmware scans for Equva devices. After finding them and connecting to MQTT broker it sends autodiscovery MQTT messages that Home Assistant uses to add every found device and its entities.
+
+After running the firmware for first time you will see something like this in Home Assistant device list.
+
+![Home assistant device after detection](HAdevice.png)
+
+**Note**: You do not need to configure entities manually. All device registration is done automatically.
 
 ## Home Assistant example card
 
