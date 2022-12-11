@@ -34,6 +34,7 @@
 #include "eq3_main.h"
 #include "eq3_wifi.h"
 #include "eq3_gap.h"
+#include "eq3_ha_discovery.h"
 
 static const char *MQTT_TAG = "mqtt";
 
@@ -135,20 +136,72 @@ static void connected_cb(esp_mqtt_event_handle_t event){
         free(devlist);
         devlist = NULL;
     }
+
+    struct found_device* eq3_devices;
+    int num_eq3;
+    enum eq3_scanstate result = EQ3_NO_SCAN_RESULTS;
+    while (result != EQ3_SCAN_COMPLETE) {
+        result = eq3gap_get_device_list (&eq3_devices, &num_eq3);
+        if (result == EQ3_SCAN_COMPLETE) {
+            struct found_device* eq3_device = eq3_devices;
+            ESP_LOGI (MQTT_TAG, "Found %d devices", num_eq3);
+            while (eq3_device != NULL) {
+                ESP_LOGI (MQTT_TAG, "EQ3: %02X:%02X:%02X:%02X:%02X:%02X", eq3_device->bda[0], eq3_device->bda[1], eq3_device->bda[2], eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
+                char* payload;
+                char topic[55];
+
+                //Home Assistant autodiscovery message for climate device
+
+                cJSON* ha_therm_payload = generate_ha_therm_payload (eq3_device->bda);
+                payload = cJSON_Print (ha_therm_payload);
+                ESP_LOGI (MQTT_TAG, "Therm Payload: %s", payload);
+                snprintf (topic, sizeof (topic), "homeassistant/climate/eq3_%02X%02X%02X_thermostat/config", eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
+                ESP_LOGI (MQTT_TAG, "Therm topic: %s", topic);
+                esp_mqtt_client_publish (repclient, topic, payload, strlen (payload), 0, 1); // retain on
+                cJSON_free (ha_therm_payload);
+                free (payload);
+
+                //Home Assistant autodiscovery message for valve position sensor
+                cJSON* ha_valve_payload = generate_ha_valve_payload (eq3_device->bda);
+                payload = cJSON_Print (ha_valve_payload);
+                ESP_LOGI (MQTT_TAG, "Valve Payload: %s", payload);
+                snprintf (topic, sizeof (topic), "homeassistant/sensor/eq3_%02X%02X%02X_valve/config", eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
+                ESP_LOGI (MQTT_TAG, "Valve topic: %s", topic);
+                esp_mqtt_client_publish (repclient, topic, payload, strlen (payload), 0, 1); // retain on
+                cJSON_free (ha_valve_payload);
+                free (payload);
+
+                //Home Assistant autodiscovery message for valve position sensor
+                cJSON* ha_battery_payload = generate_ha_battery_payload (eq3_device->bda);
+                payload = cJSON_Print (ha_battery_payload);
+                ESP_LOGI (MQTT_TAG, "Battery Payload: %s", payload);
+                snprintf (topic, sizeof (topic), "homeassistant/binary_sensor/eq3_%02X%02X%02X_battery/config", eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
+                ESP_LOGI (MQTT_TAG, "Battery topic: %s", topic);
+                esp_mqtt_client_publish (repclient, topic, payload, strlen (payload), 0, 1); // retain on
+                cJSON_free (ha_battery_payload);
+                free (payload);
+
+                eq3_device = eq3_device->next;
+            }
+        }
+        vTaskDelay (pdMS_TO_TICKS(100));
+    }
+    
 }
 
 /* MQTT data received (subscribed topic receives data) */
 static void data_cb(esp_mqtt_event_handle_t event){
     esp_mqtt_client_handle_t client = event->client;
-
+    char* topic = malloc (event->topic_len + 1);
     bool trvcmd = false, trvscan = false;
     if(event->current_data_offset == 0) {
-        char *topic = malloc(event->topic_len + 1);
         memcpy(topic, event->topic, event->topic_len);
         topic[event->topic_len] = 0;
         /* /trv is a command to an EQ3 valve */
-        if(strstr(topic, "/trv") != NULL)
+        if (strstr (topic, "/trv") != NULL) {
             trvcmd = true;
+            ESP_LOGI (MQTT_TAG, "TRV command: %s", topic);
+        }
         /* /scan is a request to run a BLE scan for EQ3 valves */
         if(strstr(topic, "/scan") != NULL)
             trvscan = true;
@@ -161,18 +214,96 @@ static void data_cb(esp_mqtt_event_handle_t event){
             esp_mqtt_client_publish(client, rsptopic, msg, strlen(msg), 0, 0);
         }
         ESP_LOGI(MQTT_TAG, "[APP] Publish topic: %s", topic);
-        free(topic);
     }
 
     if(trvcmd == true){
-        char *data = malloc(event->data_len + 1);
-        memcpy(data, event->data, event->data_len);
-        data[event->data_len] = 0;
-        ESP_LOGI(MQTT_TAG, "Handle trv msg");
-        handle_request(data);
-        free(data);
+        //char *data = malloc(event->data_len + 1);
+        //ESP_LOGI (MQTT_TAG, "Topic: %s, data: %s", topic, event->data);
+        const int MAX_DATA_LEN = 80;
+        char data[MAX_DATA_LEN];
+        memset (data, 0, sizeof (data));
+        char* topicptr = topic;
+        //ESP_LOGI (MQTT_TAG, "topicptr = %c", *topicptr);
+        // while (*topicptr != 0 && !isxdigit ((int)*topicptr)) {
+        //     ESP_LOGI (MQTT_TAG, "topicptr = %c", *topicptr);
+        //     topicptr++;
+        // }
+        int dataidx = 0;
+        bool dataerror = false;
+        topicptr = strstr (topicptr, "/trv/");
+        if (topicptr) {
+            topicptr += 5;
+            //ESP_LOGI (MQTT_TAG, "Found string \"/trv/\" %s", topicptr);
+        } else {
+            dataerror = true;
+        }
+
+        while (*topicptr != '/' && *topicptr != 0 && !dataerror) {
+            //ESP_LOGI (MQTT_TAG, "topicptr = %c", *topicptr);
+            if ((isxdigit (*topicptr) || *topicptr == ':') && dataidx < MAX_DATA_LEN - 1) {
+                data[dataidx] = *topicptr;
+                dataidx++;
+                topicptr++;
+            } else {
+                dataerror = true;
+            }
+        }
+
+        if (dataidx != 17) {
+            dataerror = true;
+            ESP_LOGI (MQTT_TAG, "Wrong address length: %d", dataidx);
+        }
+        
+        // ESP_LOGI (MQTT_TAG, "Added address %s idx %d", data, dataidx);
+
+        if (*topicptr == '/') {
+            topicptr++;
+        } else {
+            dataerror = true;
+        }
+        
+        if (!dataerror && dataidx < MAX_DATA_LEN - 1) {
+            data[dataidx] = ' ';
+            dataidx++;
+        } else {
+            dataerror = true;
+        }
+
+        // ESP_LOGI (MQTT_TAG, "Added space %s idx %d", data, dataidx);
+
+        while (*topicptr != '\0' && !dataerror && dataidx < MAX_DATA_LEN - 1) {
+            data[dataidx] = *topicptr;
+            dataidx++;
+            topicptr++;
+        }
+
+        if (event->data_len > 0) {
+            if (!dataerror && dataidx < MAX_DATA_LEN - 1) {
+                data[dataidx] = ' ';
+                dataidx++;
+            } else {
+                dataerror = true;
+            }
+        }
+
+        ESP_LOGI (MQTT_TAG, "Added command \"%s\" idx %d", data, dataidx);
+
+        if (!dataerror && dataidx < MAX_DATA_LEN - 1 - event->data_len) {
+            //memcpy ((void*)&(data[dataidx]), (void*)event->data, event->data_len);
+            int i = 0;
+            for (i = 0; i < event->data_len; i++) {
+                data[dataidx] = event->data[i];
+                dataidx++;
+            }
+            data[dataidx] = 0;
+            ESP_LOGI (MQTT_TAG, "Handle trv mqtt msg \"%s\"", data);
+            handle_request (data);
+        }
+        //free(data);
     }
     
+    free (topic);
+
     if(trvscan == true){
         start_scan();
     }
@@ -180,12 +311,17 @@ static void data_cb(esp_mqtt_event_handle_t event){
 }
 
 /* Publish a status message */
-int send_trv_status(char *status){
+int send_trv_status(char *status, char* mac_addr){
 	ESP_LOGI(MQTT_TAG, "send_trv_status");
     if(repclient != NULL){
         char topic[38];
-        sprintf(topic, "%s/status", outtopicbase);
-        esp_mqtt_client_publish(repclient, topic, status, strlen(status), 0, 0);
+        if (mac_addr != NULL) {
+            sprintf (topic, "%s/status/%s", outtopicbase, mac_addr);
+            esp_mqtt_client_publish (repclient, topic, status, strlen (status), 0, 0);
+        } else {
+            ESP_LOGW (MQTT_TAG, "NULL mac address");
+        }
+        
     }
     return 0;
 }
@@ -215,9 +351,9 @@ int connect_server(char *url, char *user, char *password, char *id){
         return -1;
     }
     
-    snprintf(lwt_topic_buff, LWT_TOPIC_LEN, "/%sradout", id);
-    snprintf(intopicbase, IN_TOPIC_LEN, "/%sradin", id);
-    snprintf(outtopicbase, OUT_TOPIC_LEN,  "/%sradout", id);
+    snprintf(lwt_topic_buff, LWT_TOPIC_LEN, "%sradout", id);
+    snprintf(intopicbase, IN_TOPIC_LEN, "%sradin", id);
+    snprintf(outtopicbase, OUT_TOPIC_LEN,  "%sradout", id);
 
     esp_mqtt_client_config_t settings = {
 #if defined(CONFIG_MQTT_SECURITY_ON)

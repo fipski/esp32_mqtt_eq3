@@ -231,11 +231,14 @@ static void gattc_command_error(esp_bd_addr_t bleda, char *error){
     /* Only send the response if there are no retries available */
     if(command_complete(false) == EQ3_CMD_FAILED){
         char statrep[120];
+        char mac_addr[20];
         int statidx = 0;
-        statidx += sprintf(&statrep[statidx], "{");
-        statidx += sprintf(&statrep[statidx], "\"trv\":\"%02X:%02X:%02X:%02X:%02X:%02X\",", bleda[0], bleda[1], bleda[2], bleda[3], bleda[4], bleda[5]);
-        statidx += sprintf(&statrep[statidx], "\"error\":\"%s\"}", error);
-        send_trv_status(statrep);
+        statidx += sprintf (&statrep[statidx], "{");
+        sprintf (mac_addr, "%02X:%02X:%02X:%02X:%02X:%02X", bleda[0], bleda[1], bleda[2], bleda[3], bleda[4], bleda[5]);
+        //statidx += sprintf (&statrep[statidx], "\"trv\":\"%02X:%02X:%02X:%02X:%02X:%02X\",", bleda[0], bleda[1], bleda[2], bleda[3], bleda[4], bleda[5]);
+        statidx += sprintf (&statrep[statidx], "\"trv\":\"%s\",", mac_addr);
+        statidx += sprintf (&statrep[statidx], "\"error\":\"%s\"}", error);
+        send_trv_status (statrep, mac_addr);
         eq3_add_log(statrep);
     }
     /* 2 second delay until disconnect to allow any background GATTC stuff to complete */
@@ -481,11 +484,15 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
 
         uint8_t tempval, temphalf = 0;
         char statrep[240];
+        char mac_addr[20];
         int statidx = 0;
+        float temperature = 0;
 
-        statidx += sprintf(&statrep[statidx], "{");
-        statidx += sprintf(&statrep[statidx], "\"trv\":\"%02X:%02X:%02X:%02X:%02X:%02X\",", gl_profile_tab[PROFILE_A_APP_ID].remote_bda[0], gl_profile_tab[PROFILE_A_APP_ID].remote_bda[1],
-            gl_profile_tab[PROFILE_A_APP_ID].remote_bda[2], gl_profile_tab[PROFILE_A_APP_ID].remote_bda[3], gl_profile_tab[PROFILE_A_APP_ID].remote_bda[4], gl_profile_tab[PROFILE_A_APP_ID].remote_bda[5]);
+        statidx += sprintf (&statrep[statidx], "{");
+        sprintf (mac_addr, "%02X:%02X:%02X:%02X:%02X:%02X", gl_profile_tab[PROFILE_A_APP_ID].remote_bda[0], gl_profile_tab[PROFILE_A_APP_ID].remote_bda[1],
+                 gl_profile_tab[PROFILE_A_APP_ID].remote_bda[2], gl_profile_tab[PROFILE_A_APP_ID].remote_bda[3], gl_profile_tab[PROFILE_A_APP_ID].remote_bda[4], gl_profile_tab[PROFILE_A_APP_ID].remote_bda[5]);
+        //statidx += sprintf (&statrep[statidx], "\"trv\":\"%02X:%02X:%02X:%02X:%02X:%02X\",", gl_profile_tab[PROFILE_A_APP_ID].remote_bda[0], gl_profile_tab[PROFILE_A_APP_ID].remote_bda[1],
+        statidx += sprintf (&statrep[statidx], "\"trv\":\"%s\",", mac_addr);
 
         if(p_data->notify.value[0] == PROP_INFO_RETURN && p_data->notify.value[1] == 1){
             if(p_data->notify.value_len > 5){
@@ -493,8 +500,9 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                 if(tempval & 0x01)
                     temphalf = 5;
                 tempval >>= 1;
-                ESP_LOGI(GATTC_TAG, "eq3 settemp is %d.%d C", tempval, temphalf);
-                statidx += sprintf(&statrep[statidx], "\"temp\":\"%d.%d\"", tempval, temphalf);
+                ESP_LOGI (GATTC_TAG, "eq3 settemp is %d.%d C", tempval, temphalf);
+                temperature = (float)tempval + (float)temphalf/10.0;
+                statidx += sprintf (&statrep[statidx], "\"temp\":\"%d.%d\"", tempval, temphalf);
             }
             if(p_data->notify.value_len >= 14){
                 int8_t offsetval, offsethalf = 0;
@@ -510,7 +518,7 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
             if(p_data->notify.value_len > 3){
                 tempval = p_data->notify.value[3];
                 ESP_LOGI(GATTC_TAG, "eq3 valve %d%% open\n", tempval);
-                statidx += sprintf(&statrep[statidx], ",\"valve\":\"%d%% open\"", tempval);
+                statidx += sprintf(&statrep[statidx], ",\"valve\":\"%d\"", tempval);
             }
             if(p_data->notify.value_len > 2){
                 tempval = p_data->notify.value[2];
@@ -525,7 +533,18 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                     ESP_LOGI(GATTC_TAG, "eq3 set auto");
                     statidx += sprintf(&statrep[statidx], "\"auto\"");
                 }
-                statidx += sprintf(&statrep[statidx], ",\"boost\":");
+                statidx += sprintf (&statrep[statidx], ",\"mode_ha\":");
+                if (temperature < 5) {
+                    ESP_LOGI (GATTC_TAG, "eq3 HA mode is OFF");
+                    statidx += sprintf (&statrep[statidx], "\"off\"");
+                } else if ((tempval & MANUAL) && (temperature >= 5)) {
+                    ESP_LOGI (GATTC_TAG, "eq3 HA mode is HEAT");
+                    statidx += sprintf (&statrep[statidx], "\"heat\"");
+                } else {
+                    ESP_LOGI (GATTC_TAG, "eq3 HA mode is AUTO");
+                    statidx += sprintf (&statrep[statidx], "\"auto\"");
+                }
+                statidx += sprintf (&statrep[statidx], ",\"boost\":");
                 if(tempval & BOOST){
                     ESP_LOGI(GATTC_TAG, "eq3 boost");
                     statidx += sprintf(&statrep[statidx], "\"active\"");
@@ -560,7 +579,7 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
             }
             statidx += sprintf(&statrep[statidx], "}");
             /* Send the status report we just collated */
-            send_trv_status(statrep);
+            send_trv_status(statrep, mac_addr);
             /* Add to the log */
             eq3_add_log(statrep);
         }else{
@@ -751,6 +770,8 @@ int handle_request(char *cmdstr){
     unsigned char cmdparms[MAX_CMD_BYTES];  
     bool start = false;
 
+    ESP_LOGI (GATTC_TAG, "Handle command %s", cmdptr);
+    
     // Skip the bleaddr
     while(*cmdptr != 0 && !isxdigit((int)*cmdptr))
         cmdptr++;
@@ -770,7 +791,7 @@ int handle_request(char *cmdstr){
         }
         /* Numerals following the command are used to set the time. If there are none the
          * valve time will be set according to the ntp time if is is synchronised */
-        if(isalnum((int)cmdptr[8])){
+        if (isalnum ((int)cmdptr[8]) && (strlen (cmdptr + 8) < 12)) {
             char hexdigit[3];
             int dig;
             hexdigit[2] = 0;
@@ -854,7 +875,22 @@ int handle_request(char *cmdstr){
             return -1;
         }
     }
-    if(start == false && strncmp((const char *)cmdptr, "off", 3) == 0){
+    if (start == false && strncmp ((const char*)cmdptr, "mode", 4) == 0) {
+        start = true;
+        cmdptr += 5;
+        ESP_LOGI (GATTC_TAG, "Command mode: \"%s\"", cmdptr);
+        if (strncmp ((const char*)cmdptr, "auto", 4) == 0) {
+            command = EQ3_AUTO;
+        }else if (strncmp ((const char*)cmdptr, "off", 3) == 0) {
+            command = EQ3_SETTEMP;
+            cmdparms[0] = 0x09; /* (30 << 1) */
+        } else if (strncmp ((const char*)cmdptr, "heat", 4) == 0) {
+            command = EQ3_MANUAL;
+        } else {
+            start = false;
+        }
+    }
+    if (start == false && strncmp ((const char*)cmdptr, "off", 3) == 0) {
         /* 'Off' is achieved by setting the required temperature to 4.5 */
         start = true;
         command = EQ3_SETTEMP;
@@ -1186,8 +1222,9 @@ void app_main(){
     }
     ESP_ERROR_CHECK( ret );
     
-    esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-    ret = esp_bt_controller_init(&bt_cfg);
+    esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT ();
+    bt_cfg.mode = ESP_BT_MODE_BLE;
+    ret = esp_bt_controller_init (&bt_cfg);
     if (ret) {
         ESP_LOGE(GATTC_TAG, "%s initialize controller failed, error code = %x\n", __func__, ret);
         return;

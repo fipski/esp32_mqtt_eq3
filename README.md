@@ -2,26 +2,41 @@
 
 ![tested on ESP-WROOM-32](https://img.shields.io/badge/tested--on-ESP--WROOM--32-brightgreen.svg)
 
+----
+
+**This repository is a fork of <https://github.com/softypit/esp32_mqtt_eq3>. My target is to make this to be integrated easily on Home Assistant. My repect to @softypit for making such good gateway for EQ-3 valves.**
+
+Main changes from parent are:
+    - MQTT topics have been reworked for easier integration
+    - MQTT discovery messages are sent automatically on start to let register the valve into Home Assistant automatically.
+
+---
+
 EQ-3 radiator valves work really well for a home-automation heating system. They are fully configurable vie BLE as well as their front-panel. There are more features on the valves than the calorBT app makes available.
 
 The main problem with centrally controlling EQ-3 valves is the limited range of BLE. This makes it impossible to use a single central-controller to talk to all TRVs in a typical house. Therefore multiple 'hubs' are required at distributed locations.
 
 ## Table of Contents
 
-* [Description](#description)
-  + [Configuration](#configuration)
-    - [Reset configuration](#reset-configuration)
-  + [Determine EQ-3 addresses](#determine-eq-3-addresses)
-  + [Supported commands](#supported-commands)
-  + [JSON-Format of status topic](#json-format-of-status-topic)
-  + [Read current status](#read-current-status)
-  + [MQTT Topics](#mqtt-topics)
-  + [Web interface](#web-interface)
-* [Usage Summary](#usage-summary)
-* [Developer notes](#developer-notes)
-* [Testing](#testing)
-* [Supported Models](#supported-models)
-* [Credits](#credits)
+- [EQ-3 Radiator valve control application for ESP-32](#eq-3-radiator-valve-control-application-for-esp-32)
+  - [Table of Contents](#table-of-contents)
+  - [Description](#description)
+    - [Configuration](#configuration)
+      - [Reset configuration](#reset-configuration)
+    - [Determine EQ-3 addresses](#determine-eq-3-addresses)
+    - [Supported commands](#supported-commands)
+    - [JSON-Format of status topic](#json-format-of-status-topic)
+    - [Read current status](#read-current-status)
+    - [MQTT Topics](#mqtt-topics)
+    - [Web interface](#web-interface)
+  - [Usage Summary](#usage-summary)
+  - [Developer notes](#developer-notes)
+  - [Testing](#testing)
+  - [Supported Models](#supported-models)
+  - [Credits](#credits)
+    - [Source and continuative reverse engineering by](#source-and-continuative-reverse-engineering-by)
+    - [Notes](#notes)
+    - [Compiling](#compiling)
 
 ## Description
 
@@ -62,30 +77,40 @@ The application can be forced into config mode by pressing and holding the `BOOT
 ### Determine EQ-3 addresses
 
 Once connected in WiFi STA mode this application first scans for EQ-3 valves and publishes their addresses and rssi to the MQTT broker.  
-A scan can be initiated at any time by publishing to the `/<mqttid>radin/scan` topic.  
-Scan results are published to `/<mqttid>radout/devlist` in json format.
+A scan can be initiated at any time by publishing to the `<mqttid>radin/scan` topic.  
+Scan results are published to `<mqttid>radout/devlist` in json format.
 
-Control of valves is carried out by publishing to the `/<mqttid>radin/trv` topic with a payload consisting of:
-  `ab:cd:ef:gh:ij:kl <command> [parm]`
+```json
+{
+    "devices":[
+        {"rssi":-77,"bleaddr":"00:1A:22:11:E7:20"},
+        {"rssi":-87,"bleaddr":"00:1A:22:10:61:F3"},
+        {"rssi":-81,"bleaddr":"00:1A:22:10:41:90"}
+    ]
+}
+```
+
+Control of valves is carried out by publishing to the `<mqttid>radin/trv/<address>/<command>` topic with a payload consisting of:
+  `[parm]`
 where the device is indicated by its bluetooth address (MAC)
 
 ### Supported commands
 
 | Parameter | Description | Parameters | Examples | Stable since |
 | ------------- | ------------- | ------------- | ------------- | ------------- |
-| settime | sets the current time on the valve | settime has an optional parameter of the hexadecimal encoded current time.<br>parm is 12 characters hexadecimal yymmddhhMMss (e.g. 13010c0c0a00 is 2019/Jan/12 12:00.00)<br>if no parameter is submitted and ntp is enabled the ntp time (with timezone offset) will be used | *`/<mqttid>radin/trv <eq-3-address> settemp 13010c0c0a00`*<br><br>`/livingroomradin/trv ab:cd:ef:gh:ij:kl settemp 13010c0c0a00` | v1.20 |
-| boost | sets the boost mode | -none - | *`/<mqttid>radin/trv <eq-3-address> boost`*<br><br>`/livingroomradin/trv ab:cd:ef:gh:ij:kl boost` | v1.20 |
-| unboost | reset to unboost mode | -none - | *`/<mqttid>radin/trv <eq-3-address> unboost`*<br><br>`/livingroomradin/trv ab:cd:ef:gh:ij:kl unboost` | v1.20 |
-| lock | locks the front-panel controls | -none - | *`/<mqttid>radin/trv <eq-3-address> lock`*<br><br>`/livingroomradin/trv ab:cd:ef:gh:ij:kl lock` | v1.20 |
-| unlock | release the lock for the front-panel controls | -none - | *`/<mqttid>radin/trv <eq-3-address> unlock`*<br><br>`/livingroomradin/trv ab:cd:ef:gh:ij:kl unlock` | v1.20 |
-| auto | enables the internal temperature/time program | -none - | *`/<mqttid>radin/trv <eq-3-address> auto`*<br><br>`/livingroomradin/trv ab:cd:ef:gh:ij:kl auto` | v1.20 |
-| manual | disables the internal temperature/time program | -none - | *`/<mqttid>radin/trv <eq-3-address> manual`*<br><br>`/livingroomradin/trv ab:cd:ef:gh:ij:kl manual` | v1.20 |
-| offset | sets the room-temperature offset | the temperature to set, this can be -3.5 - +3.5 in 0.5 degree increments | *`/<mqttid>radin/trv <eq-3-address> offset 3.5`*<br><br>`/livingroomradin/trv ab:cd:ef:gh:ij:kl offset 3.5` | v1.20 |
-| settemp | sets the required temperature for the valve to open/close at | the temperature to set, this can be 5.0 to 29.5 in 0.5 degree increments| *`/<mqttid>radin/trv <eq-3-address> settemp 20.0`*<br><br>`/livingroomradin/trv ab:cd:ef:gh:ij:kl settemp 20.0` | v1.20 |
-| on | opens the valve fully (lcd display 'on') | -none - | *`/<mqttid>radin/trv <eq3-address> on`*<br><br>`/livingroomradin/trv ab:cd:ef:gh:ij:kl on` | v1.49 |
-| off | closes the valve fully (lcd display 'off') | -none - | *`/<mqttid>radin/trv <eq3-address> off`*<br><br>`/livingroomradin/trv ab:cd:ef:gh:ij:kl off` | v1.49 |
+| settime | sets the current time on the valve | settime has an optional parameter of the hexadecimal encoded current time.<br>parm is 12 characters hexadecimal yymmddhhMMss (e.g. 13010c0c0a00 is 2019/Jan/12 12:00.00)<br>if no parameter is submitted and ntp is enabled the ntp time (with timezone offset) will be used | *`<mqttid>radin/trv/<eq-3-address>/settemp 13010c0c0a00`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/settemp 13010c0c0a00` | v1.20 |
+| boost | sets the boost mode | -none - | *`<mqttid>radin/trv/<eq-3-address>/boost`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/boost` | v1.20 |
+| unboost | reset to unboost mode | -none - | *`<mqttid>radin/trv/<eq-3-address>/unboost`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/unboost` | v1.20 |
+| lock | locks the front-panel controls | -none - | *`<mqttid>radin/trv/<eq-3-address>/lock`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/lock` | v1.20 |
+| unlock | release the lock for the front-panel controls | -none - | *`<mqttid>radin/trv/<eq-3-address>/unlock`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/unlock` | v1.20 |
+| auto | enables the internal temperature/time program | -none - | *`<mqttid>radin/trv/<eq-3-address>/auto`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/auto` | v1.20 |
+| manual | disables the internal temperature/time program | -none - | *`<mqttid>radin/trv/<eq-3-address>/manual`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/manual` | v1.20 |
+| offset | sets the room-temperature offset | the temperature to set, this can be -3.5 - +3.5 in 0.5 degree increments | *`<mqttid>radin/trv/<eq-3-address>/offset 3.5`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/offset 3.5` | v1.20 |
+| settemp | sets the required temperature for the valve to open/close at | the temperature to set, this can be 5.0 to 29.5 in 0.5 degree increments| *`<mqttid>radin/trv/<eq-3-address>/settemp 20.0`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/settemp 20.0` | v1.20 |
+| on | opens the valve fully (lcd display 'on') | -none - | *`<mqttid>radin/trv/<eq3-address>/on`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/on` | v1.49 |
+| off | closes the valve fully (lcd display 'off') | -none - | *`<mqttid>radin/trv/<eq3-address>/off`*<br><br>`livingroomradin/trv/ab:cd:ef:gh:ij:kl/off` | v1.49 |
 
-In response to every successful command a status message is published to `/<mqttid>radout/status` containing json-encoded details of address, temperature set point, valve open percentage, mode, boost state, lock state and battery state. 
+In response to every successful command a status message is published to `<mqttid>radout/status/<address>` containing json-encoded details of address, temperature set point, valve open percentage, mode, boost state, lock state and battery state. 
 
 This can be used as an acknowledgement of a successful command to remote mqtt clients.
 
@@ -96,27 +121,56 @@ This can be used as an acknowledgement of a successful command to remote mqtt cl
 | trv | Bluetooth-Address of the corresponding thermostat | `"trv":"ab:cd:ef:gh:ij:kl"` | 1.20 |
 | temp | the current target room-temperature is set | `"temp":"20.0"` | 1.20 |
 | offsetTemp | the current offset temperature is set | `"offsetTemp":"0.0"` | 1.30 (upstream merge in dev) |
+| valve | Position of valve control | `"valve": "0"` | 1.64 |
 | mode | the current thermostate programm mode<br><br>`"auto"` = internal temperature/time program is used<br>`"manual"` = internal temperature/time program is disabled<br>`"holiday"` = holiday mode is used | `"mode":"auto"`<br> `"mode":"manual"`<br> `"mode":"holiday"` | 1.20 <sup>1)</sup> |
+| mode_ha | Mode reported to HomeAssistant<br><br>`"off"` = temperature &lt; 5<br>`"heat"` = manual mode with temperature &gt; 5<br>`"auto"`= auto mode | `"mode": "off"`<br> `"mode": "heat"`<br> `"mode": "auto"` | x.xx |
 | boost | boost-mode is active / inactiv | `"boost"`:`"active"`<br>`"boost"`:`"inactive"` | 1.20 |
 | state | front-panel controls are locked / unlocked | `"state"`:`"locked"`<br>`"state"`:`"unlocked"` | 1.20 |
 | battery | battery state | `"battery"`:`"GOOD"`<br>`"battery"`:`"LOW"` | 1.20 |
 | window | window-mode is active / inactive | `"window"`:`"open"`<br>`"window"`:`"closed"` | |
 
+Example:
+
+Topic
+
+```raw
+eq3_radout/status/00:1A:22:11:E7:20
+```
+
+Data
+
+```json
+{
+    "trv":"00:1A:22:11:E7:20",
+    "temp":"22.0",
+    "offsetTemp":"3.0",
+    "valve":"64",
+    "mode":"auto",
+    "mode_ha":"auto",
+    "boost":"inactive",
+    "window":"closed",
+    "state":"unlocked",
+    "battery":"GOOD"
+}
+```
+
 ### Read current status
 
 There is no specific command to poll the status of the valve but using any of the commands to re-set the current value will achieve the required result.
 
-Note: It has been observed that using unboost to poll a valve can result in the valve opening as if in boost mode but without reporting boost mode active on the display or status. 
+Note 1: sending settime command does not affect settings in valve and causes a status message
+
+Note 2: It has been observed that using unboost to poll a valve can result in the valve opening as if in boost mode but without reporting boost mode active on the display or status. 
 It is probably not advisable to poll the valve with the unboost command.
 
 ### MQTT Topics
 
 | Key | Description | published | subscriped |
 | ------------- |  ------------- |  :-------------: |  :-------------: |
-| `/<mqttid>radout/devlist` | list of available bluetooth devices | X | |
-| `/<mqttid>radout/status ` | show a status message each time a trv is contacted | X | |
-| `/<mqttid>radin/trv <command> [param]` | sends a command to the trv | | X |
-| `/<mqttid>radin/scan` | scan for available bluetooth devices | | X |
+| `<mqttid>radout/devlist` | list of available bluetooth devices | X | |
+| `<mqttid>radout/status/<address>` | show a status message each time a trv is contacted | X | |
+| `<mqttid>radin/trv/<address>/<command> [param]` | sends a command to the trv | | X |
+| `<mqttid>radin/scan` | scan for available bluetooth devices | | X |
 
 ### Web interface
 
@@ -137,8 +191,8 @@ web server is part of Mongoose - https://github.com/cesanta/mongoose
 # Connect to a mosquitto broker:
 
 mosquitto_sub -h 127.0.0.1 -p 1883 -t "<mqttid>radout/devlist"  # Will display a list of discovered EQ-3 TRVs  
-mosquitto_sub -h 127.0.0.1 -p 1883 -t "<mqttid>radout/status"  # will show a status message each time a trv is contacted  
-mosquitto_pub -h 127.0.0.1 -p 1883 -t "<mqttid>radin/trv" -m "ab:cd:ef:gh:ij:kl settemp 20.0" # Sets trv temp to 20 degrees
+mosquitto_sub -h 127.0.0.1 -p 1883 -t "<mqttid>radout/status/#"  # will show a status message each time a trv is contacted  
+mosquitto_pub -h 127.0.0.1 -p 1883 -t "<mqttid>radin/trv/ab:cd:ef:gh:ij:kl/settemp" -m "20.0" # Sets trv temp to 20 degrees
 ```
 
 ## Supported Models
@@ -175,7 +229,7 @@ mosquitto_pub -h 127.0.0.1 -p 1883 -t "<mqttid>radin/trv" -m "ab:cd:ef:gh:ij:kl 
 
 ### Notes
 
-version 1.6 has been ported to use ESP IDF 4.3.1 and Mongoose Embedded Networking Library 7.4.
+version 1.7 has been ported to use ESP IDF 4.4.3 and Mongoose Embedded Networking Library 7.4.
 Various tweaks and bugfixes have been applied including addition of two DNS servers for use in fixed-IP mode and a second NTP server.
 A timeout has been added to BLE operations to attempt to prevent the 'freeze-up' experienced occasionally on previous versions.
 
