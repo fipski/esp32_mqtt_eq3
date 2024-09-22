@@ -1,7 +1,7 @@
-
 #ifndef EQ3_TIMER_H
 #define EQ3_TIMER_H
 
+#include "freertos/queue.h"
 
 typedef struct {
     int type;                  /*!< event type */

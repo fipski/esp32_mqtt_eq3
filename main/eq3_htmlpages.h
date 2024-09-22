@@ -126,7 +126,7 @@ const char uploadsuccess[] = R"EOF(
 <div style='text-align:center;'> 
 <h1>Upload status</h1> 
 Firmware upload success 
-%d bytes transferred 
+%lu bytes transferred 
 <br><a href="/restartnow">Reboot ESP</a> to apply new image 
 </div>
 )EOF";

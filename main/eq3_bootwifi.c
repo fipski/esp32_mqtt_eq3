@@ -14,6 +14,8 @@
 #include <esp_system.h>
 #include <esp_event.h>
 #include <esp_wifi.h>
+#include "esp_netif.h"
+#include "esp_rom_gpio.h"
 #include <nvs.h>
 #include <nvs_flash.h>
 #include <driver/gpio.h>
@@ -57,6 +59,12 @@ static esp_netif_t *sta_netif = NULL;
 #define SNTP_TIMEZONE_SIZE (35)              // Maximum length of timezone parameter
 
 /* Non-volatile configuration parameters */
+
+typedef struct {
+    ip4_addr_t ip;      /**< Interface IPV4 address */
+    ip4_addr_t netmask; /**< Interface IPV4 netmask */
+    ip4_addr_t gw;      /**< Interface IPV4 gateway address */
+} tcpip_adapter_ip_info_t;
 
 /* This is the older config structure (used here to read config from previous versions of code) */
 typedef struct {
@@ -209,7 +217,7 @@ static char *mgStrToStr(struct mg_str mgStr) {
     if(mgStr.len == 0)
         return NULL;
     char *retStr = (char *) malloc(mgStr.len + 1);
-    memcpy(retStr, mgStr.ptr, mgStr.len);
+    memcpy(retStr, mgStr.buf, mgStr.len);
     retStr[mgStr.len] = 0;
     return retStr;
 } // mgStrToStr
@@ -400,7 +408,7 @@ static int mongoose_serve_status(struct mg_connection *nc){
         minutes = uptime / 60;
         uptime -= (minutes * 60);
         char *htmlstr = malloc(strlen(connectedstatus) + strlen(connectionInfo.mqtturl) + strlen(connectionInfo.mqttid) + 15 + 10);
-        sprintf(htmlstr, connectedstatus, connectionInfo.mqtturl, connectionInfo.mqttid, status, days, hours, minutes, (uint8_t)uptime);
+        sprintf(htmlstr, connectedstatus, connectionInfo.mqtturl, connectionInfo.mqttid, status, (int)days, hours, minutes, (uint8_t)uptime);
         mongoose_serve_content(nc, htmlstr, true);
         free(htmlstr);
         //nc->flags |= MG_F_SEND_AND_CLOSE;
@@ -506,7 +514,7 @@ static void mongoose_event_handler(struct mg_connection *nc, int ev, void *evDat
                     mongoose_serve_status(nc);
             }else if(strcmp(uri, "/configSubmit") == 0) {
                 char newpass[PASSWORD_SIZE];
-                ESP_LOGD(tag, "- body: %.*s", message->body.len, message->body.ptr);
+                ESP_LOGD(tag, "- body: %.*s", message->body.len, message->body.buf);
                 //connection_info_t connectionInfo;
                 mg_http_get_var(&message->body, "ssid",	connectionInfo.ssid, SSID_SIZE);
                 newpass[0] = 0;
@@ -621,6 +629,9 @@ static void mongoose_event_handler(struct mg_connection *nc, int ev, void *evDat
             break; 
             
         } // MG_EV_HTTP_REQUEST
+
+// New mongoose have removed the MG_EV_HTTP_CHUNK event
+#ifdef removed
         case MG_EV_HTTP_CHUNK: {
             struct mg_http_message *message = (struct mg_http_message *) evData;
             char *uri = mgStrToStr(message->uri);
@@ -704,6 +715,7 @@ static void mongoose_event_handler(struct mg_connection *nc, int ev, void *evDat
             free(uri);
             break;
         } // MG_EV_HTTP_CHUNK
+#endif
         default:
             //if(ev != 0 && ev != MG_EV_POLL)
             //    ESP_LOGI(tag, "Event %x", ev);
@@ -759,7 +771,7 @@ static void becomeAccessPoint();
 
 static int setStatusLed(int on) {
 #if defined(CONFIG_ENABLE_STATUS_LED) && defined(CONFIG_STATUS_LED_GPIO)
-    gpio_pad_select_gpio(CONFIG_STATUS_LED_GPIO);
+    esp_rom_gpio_pad_select_gpio(CONFIG_STATUS_LED_GPIO);
     gpio_set_direction(CONFIG_STATUS_LED_GPIO, GPIO_MODE_OUTPUT);
     return gpio_set_level(CONFIG_STATUS_LED_GPIO, !on);
 #else
@@ -897,20 +909,20 @@ int getConnectionInfo(connection_info_t *pConnectionInfo) {
         return -1;
     }
     if ((version & 0xff00) != (g_version & 0xff00)) {
-        ESP_LOGI(tag, "Config versions differ ... current is %x, found is %x", g_version, version);
+        ESP_LOGI(tag, "Config versions differ ... current is %lx, found is %lx", g_version, version);
         /* Check for previous config structure */
-        ESP_LOGI(tag, "Older version of config (%x), found. New options will be default. Please re-save", version);
+        ESP_LOGI(tag, "Older version of config (%lx), found. New options will be default. Please re-save", version);
         if ((version & 0xff00) == (g_v1_version & 0xff00)) {
             size = V1_CONNECTION_INFO_SIZE;
         }else if ((version & 0xff00) == (g_v2_version & 0xff00)) {
             size = V2_CONNECTION_INFO_SIZE;
         }else{
-            ESP_LOGI(tag, "Incompatible versions ... current is %x, found is %x", g_version, version);
+            ESP_LOGI(tag, "Incompatible versions ... current is %lx, found is %lx", g_version, version);
             nvs_close(handle);
             return -1;
         }
     }else{
-        ESP_LOGI(tag, "Config version %x found", g_version);
+        ESP_LOGI(tag, "Config version %lx found", g_version);
         size = sizeof(connection_info_t);
     }
 
@@ -1031,7 +1043,7 @@ static void becomeAccessPoint() {
 
 static int checkOverrideGpio() {
 #if defined(CONFIG_ENABLE_AP_OVERRIDE_GPIO) && defined(CONFIG_BOOTWIFI_OVERRIDE_GPIO)
-    gpio_pad_select_gpio(CONFIG_BOOTWIFI_OVERRIDE_GPIO);
+    esp_rom_gpio_pad_select_gpio(CONFIG_BOOTWIFI_OVERRIDE_GPIO);
     gpio_set_direction(CONFIG_BOOTWIFI_OVERRIDE_GPIO, GPIO_MODE_INPUT);
     gpio_set_pull_mode(CONFIG_BOOTWIFI_OVERRIDE_GPIO, GPIO_PULLUP_ONLY);
     return gpio_get_level(CONFIG_BOOTWIFI_OVERRIDE_GPIO);

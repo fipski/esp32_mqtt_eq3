@@ -20,6 +20,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
@@ -44,13 +45,14 @@ static const char *MQTT_TAG = "mqtt";
 
 static void connected_cb(esp_mqtt_event_handle_t event);
 static void data_cb(esp_mqtt_event_handle_t event);
-static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event);
 
 static esp_mqtt_client_handle_t repclient = NULL;
 static bool mqtt_config_error = false;
 static char *devlist = NULL;
 
-static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event){
+//static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event){
+static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data){
+    esp_mqtt_event_handle_t event = event_data;
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(MQTT_TAG, "MQTT connected");
@@ -82,7 +84,6 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event){
             ESP_LOGI(MQTT_TAG, "Other event id:%d", event->event_id);
             break;
     }
-    return ESP_OK;
 }
 
 #define IN_TOPIC_LEN     30
@@ -151,7 +152,7 @@ static void connected_cb(esp_mqtt_event_handle_t event){
             while (eq3_device != NULL) {
                 ESP_LOGI (MQTT_TAG, "EQ3: %02X:%02X:%02X:%02X:%02X:%02X", eq3_device->bda[0], eq3_device->bda[1], eq3_device->bda[2], eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
                 char* payload;
-                char topic[55];
+                char topic[155];
 
                 //Home Assistant autodiscovery message for climate device
 
@@ -243,7 +244,7 @@ static void data_cb(esp_mqtt_event_handle_t event){
 
         while (*topicptr != '/' && *topicptr != 0 && !dataerror) {
             //ESP_LOGI (MQTT_TAG, "topicptr = %c", *topicptr);
-            if ((isxdigit (*topicptr) || *topicptr == ':') && dataidx < MAX_DATA_LEN - 1) {
+            if ((isxdigit ((unsigned char)*topicptr) || *topicptr == ':') && dataidx < MAX_DATA_LEN - 1) {
                 data[dataidx] = *topicptr;
                 dataidx++;
                 topicptr++;
@@ -338,7 +339,9 @@ int send_device_list(char *list){
 	    free(list);
     }else{
         if(devlist != NULL)
-	    free(devlist);
+        {
+	        free(devlist);
+        }
 	    ESP_LOGI(MQTT_TAG, "Queue device list message to publish");
         devlist = list;
     }
@@ -363,25 +366,27 @@ int connect_server(char *url, char *user, char *password, char *id){
 #if defined(CONFIG_MQTT_SECURITY_ON)
         .port = 8883, // encrypted
 #else
-        .port = 1883, // unencrypted
+        .broker.address.port = 1883, // unencrypted
 #endif
-        .keepalive = 60,
-        .lwt_msg = "Heating control offline",
-        .lwt_qos = 0,
-        .lwt_retain = 0,
-        .event_handle = mqtt_event_handler,
-        .uri = url,
-        .username = user,
-        .password = password,
-        .client_id = id,
-        .lwt_topic = lwt_topic_buff
+        .session.keepalive = 60,
+        .session.last_will.msg = "Heating control offline",
+        .session.last_will.qos = 0,
+        .session.last_will.topic = lwt_topic_buff,
+        .session.last_will.retain = 0,
+        .broker.address.uri = url,
+        .credentials.username = user,
+        .credentials.authentication.password = password,
+        .credentials.client_id = id
     };
 
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&settings);
+
+	esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+	
     if(client){
         esp_mqtt_client_start(client);
-        ESP_LOGI(MQTT_TAG, "[APP] Settings.lwt_topic: %s", settings.lwt_topic);
-        ESP_LOGI(MQTT_TAG, "[APP] Settings.client_id: %s", settings.client_id);
+        ESP_LOGI(MQTT_TAG, "[APP] Settings.lwt_topic: %s", settings.session.last_will.topic);
+        ESP_LOGI(MQTT_TAG, "[APP] Settings.client_id: %s", settings.credentials.client_id);
     }else{
         ESP_LOGE(MQTT_TAG, "MQTT client failed to start");
         mqtt_config_error = true;
