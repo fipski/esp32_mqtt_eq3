@@ -87,12 +87,15 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event){
 
 #define IN_TOPIC_LEN     30
 #define OUT_TOPIC_LEN    30
+#define MQTT_ID_LEN    30
 #define LWT_TOPIC_LEN    38
 
 /* Inbound topic prefix */
 static char intopicbase[IN_TOPIC_LEN];
 /* Outbound topic prefix */
 static char outtopicbase[OUT_TOPIC_LEN];
+/* MQTT ID */
+static char mqtt_id[MQTT_ID_LEN];
 /* LastWillTestament topic (same as outbound topic currently but keep separate in case we want to change it) */
 static char lwt_topic_buff[LWT_TOPIC_LEN];
 
@@ -152,30 +155,30 @@ static void connected_cb(esp_mqtt_event_handle_t event){
 
                 //Home Assistant autodiscovery message for climate device
 
-                cJSON* ha_therm_payload = generate_ha_therm_payload (eq3_device->bda);
+                cJSON* ha_therm_payload = generate_ha_therm_payload (eq3_device->bda, mqtt_id);
                 payload = cJSON_Print (ha_therm_payload);
                 ESP_LOGI (MQTT_TAG, "Therm Payload: %s", payload);
-                snprintf (topic, sizeof (topic), "homeassistant/climate/eq3_%02X%02X%02X_thermostat/config", eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
+                snprintf (topic, sizeof (topic), "homeassistant/climate/%s%02X%02X%02X_thermostat/config", mqtt_id, eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
                 ESP_LOGI (MQTT_TAG, "Therm topic: %s", topic);
                 esp_mqtt_client_publish (repclient, topic, payload, strlen (payload), 0, 1); // retain on
                 cJSON_free (ha_therm_payload);
                 free (payload);
 
                 //Home Assistant autodiscovery message for valve position sensor
-                cJSON* ha_valve_payload = generate_ha_valve_payload (eq3_device->bda);
+                cJSON* ha_valve_payload = generate_ha_valve_payload (eq3_device->bda, mqtt_id);
                 payload = cJSON_Print (ha_valve_payload);
                 ESP_LOGI (MQTT_TAG, "Valve Payload: %s", payload);
-                snprintf (topic, sizeof (topic), "homeassistant/sensor/eq3_%02X%02X%02X_valve/config", eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
+                snprintf (topic, sizeof (topic), "homeassistant/sensor/%s%02X%02X%02X_valve/config", mqtt_id, eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
                 ESP_LOGI (MQTT_TAG, "Valve topic: %s", topic);
                 esp_mqtt_client_publish (repclient, topic, payload, strlen (payload), 0, 1); // retain on
                 cJSON_free (ha_valve_payload);
                 free (payload);
 
                 //Home Assistant autodiscovery message for valve position sensor
-                cJSON* ha_battery_payload = generate_ha_battery_payload (eq3_device->bda);
+                cJSON* ha_battery_payload = generate_ha_battery_payload (eq3_device->bda, mqtt_id);
                 payload = cJSON_Print (ha_battery_payload);
                 ESP_LOGI (MQTT_TAG, "Battery Payload: %s", payload);
-                snprintf (topic, sizeof (topic), "homeassistant/binary_sensor/eq3_%02X%02X%02X_battery/config", eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
+                snprintf (topic, sizeof (topic), "homeassistant/binary_sensor/%s%02X%02X%02X_battery/config", mqtt_id, eq3_device->bda[3], eq3_device->bda[4], eq3_device->bda[5]);
                 ESP_LOGI (MQTT_TAG, "Battery topic: %s", topic);
                 esp_mqtt_client_publish (repclient, topic, payload, strlen (payload), 0, 1); // retain on
                 cJSON_free (ha_battery_payload);
@@ -354,6 +357,7 @@ int connect_server(char *url, char *user, char *password, char *id){
     snprintf(lwt_topic_buff, LWT_TOPIC_LEN, "%sradout", id);
     snprintf(intopicbase, IN_TOPIC_LEN, "%sradin", id);
     snprintf(outtopicbase, OUT_TOPIC_LEN,  "%sradout", id);
+    snprintf(mqtt_id, MQTT_ID_LEN, "%s", id);
 
     esp_mqtt_client_config_t settings = {
 #if defined(CONFIG_MQTT_SECURITY_ON)

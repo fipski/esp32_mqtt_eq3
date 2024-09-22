@@ -11,7 +11,7 @@
 
 #define HA_TAG "HA_DISCOVERY"
 
-cJSON* generate_ha_therm_payload (char mac[6]) {
+cJSON* generate_ha_therm_payload (char mac[6], char *id) {
     char rawmacstr[7];
     char macstr[18];
 
@@ -23,7 +23,7 @@ cJSON* generate_ha_therm_payload (char mac[6]) {
     cJSON* root = cJSON_CreateObject ();
     // "name": "eq3_{{rawmacstr}}_thermostat"
     char buffer[40];
-    snprintf (buffer, sizeof (buffer), "eq3_%s_thermostat", rawmacstr);
+    snprintf (buffer, sizeof (buffer), "%s%s_thermostat", id, rawmacstr);
     cJSON_AddStringToObject (root, "name", buffer);
     // "unique_id": "eq3_YYYYYY_thermostat"
     cJSON_AddStringToObject (root, "unique_id", buffer);
@@ -31,7 +31,7 @@ cJSON* generate_ha_therm_payload (char mac[6]) {
     cJSON* device;
     cJSON_AddItemToObject (root, "device", device = cJSON_CreateObject ());
     // "name": "Equiva EQ-3 BT YYYYYY"
-    snprintf (buffer, sizeof (buffer), "eq3_Equiva EQ-3 BT %s", rawmacstr);
+    snprintf (buffer, sizeof (buffer), "%sEquiva EQ-3 BT %s", id, rawmacstr);
     cJSON_AddStringToObject (device, "name", buffer);
     // "configuration_url": "http://123.123.123.123"
     esp_netif_t* netif = NULL;
@@ -61,16 +61,16 @@ cJSON* generate_ha_therm_payload (char mac[6]) {
     // "temperature_unit": "C"
     cJSON_AddStringToObject (root, "temperature_unit", "C");
     // "mode_command_topic": "eq3_radin/trv/XX:XX:XX:YY:YY:YY/mode"
-    snprintf (buffer, sizeof (buffer), "eq3_radin/trv/%s/mode", macstr);
+    snprintf (buffer, sizeof (buffer), "%sradin/trv/%s/mode", id, macstr);
     cJSON_AddStringToObject (root, "mode_command_topic", buffer);
     // "json_attributes_topic": "eq3_radout/status/XX:XX:XX:YY:YY:YY"
-    snprintf (buffer, sizeof (buffer), "eq3_radout/status/%s", macstr);
+    snprintf (buffer, sizeof (buffer), "%sradout/status/%s", id, macstr);
     cJSON_AddStringToObject (root, "json_attributes_topic", buffer);
     //"temperature_command_topic": "eq3_radin/trv/XX:XX:XX:YY:YY:YY/settemp"
-    snprintf (buffer, sizeof (buffer), "eq3_radin/trv/%s/settemp", macstr);
+    snprintf (buffer, sizeof (buffer), "%sradin/trv/%s/settemp", id, macstr);
     cJSON_AddStringToObject (root, "temperature_command_topic", buffer);
     //"temperature_state_topic" : "eq3_radout/status/XX:XX:XX:YY:YY:YY"
-    snprintf (buffer, sizeof (buffer), "eq3_radout/status/%s", macstr);
+    snprintf (buffer, sizeof (buffer), "%sradout/status/%s", id, macstr);
     cJSON_AddStringToObject (root, "temperature_state_topic", buffer);
     //"current_temperature_topic" : "eq3_radout/status/XX:XX:XX:YY:YY:YY",
     cJSON_AddStringToObject (root, "current_temperature_topic", buffer);
@@ -90,7 +90,7 @@ cJSON* generate_ha_therm_payload (char mac[6]) {
     return root;
 }
 
-cJSON* generate_ha_valve_payload (char mac[6]) {
+cJSON* generate_ha_valve_payload (char mac[6], char *id) {
     char rawmacstr[7];
     char macstr[18];
 
@@ -102,7 +102,7 @@ cJSON* generate_ha_valve_payload (char mac[6]) {
     cJSON* root = cJSON_CreateObject ();
     // "name": "eq3_{{rawmacstr}}_valve"
     char buffer[40];
-    snprintf (buffer, sizeof (buffer), "eq3_%s_valve", rawmacstr);
+    snprintf (buffer, sizeof (buffer), "%s%s_valve", id, rawmacstr);
     cJSON_AddStringToObject (root, "name", buffer);
     // "unique_id": "eq3_YYYYYY_valve"
     cJSON_AddStringToObject (root, "unique_id", buffer);
@@ -110,7 +110,7 @@ cJSON* generate_ha_valve_payload (char mac[6]) {
     cJSON* device;
     cJSON_AddItemToObject (root, "device", device = cJSON_CreateObject ());
     // "name": "Equiva EQ-3 BT YYYYYY"
-    snprintf (buffer, sizeof (buffer), "eq3_Equiva EQ-3 BT %s", rawmacstr);
+    snprintf (buffer, sizeof (buffer), "%sEquiva EQ-3 BT %s", id, rawmacstr);
     cJSON_AddStringToObject (device, "name", buffer);
     // "configuration_url": "http://123.123.123.123"
     esp_netif_t* netif = NULL;
@@ -132,7 +132,7 @@ cJSON* generate_ha_valve_payload (char mac[6]) {
     // "unit_of_measurement": "%"
     cJSON_AddStringToObject (root, "unit_of_measurement", "%");
     // "state_topic": "eq3_radout/status/XX:XX:XX:YY:YY:YY",
-    snprintf (buffer, sizeof (buffer), "eq3_radout/status/%s", macstr);
+    snprintf (buffer, sizeof (buffer), "%sradout/status/%s", id, macstr);
     cJSON_AddStringToObject (root, "state_topic", buffer);
     // "value_template": "{{ value_json.valve }}"
     cJSON_AddStringToObject (root, "value_template", "{{ value_json.valve }}");
@@ -143,7 +143,7 @@ cJSON* generate_ha_valve_payload (char mac[6]) {
     return root;
 }
 
-cJSON* generate_ha_battery_payload (char mac[6]) {
+cJSON* generate_ha_battery_payload (char mac[6], char *id) {
     char rawmacstr[7];
     char macstr[18];
 
@@ -155,7 +155,7 @@ cJSON* generate_ha_battery_payload (char mac[6]) {
     cJSON* root = cJSON_CreateObject ();
     // "name": "eq3_{{rawmacstr}}_battery"
     char buffer[40];
-    snprintf (buffer, sizeof (buffer), "eq3_%s_battery", rawmacstr);
+    snprintf (buffer, sizeof (buffer), "%s%s_battery", id, rawmacstr);
     cJSON_AddStringToObject (root, "name", buffer);
     // "unique_id": "eq3_YYYYYY_battery"
     cJSON_AddStringToObject (root, "unique_id", buffer);
@@ -163,7 +163,7 @@ cJSON* generate_ha_battery_payload (char mac[6]) {
     cJSON* device;
     cJSON_AddItemToObject (root, "device", device = cJSON_CreateObject ());
     // "name": "Equiva EQ-3 BT YYYYYY"
-    snprintf (buffer, sizeof (buffer), "eq3_Equiva EQ-3 BT %s", rawmacstr);
+    snprintf (buffer, sizeof (buffer), "%sEquiva EQ-3 BT %s", id, rawmacstr);
     cJSON_AddStringToObject (device, "name", buffer);
     // "configuration_url": "http://123.123.123.123"
     esp_netif_t* netif = NULL;
@@ -183,7 +183,7 @@ cJSON* generate_ha_battery_payload (char mac[6]) {
     // "device_class": "power"
     cJSON_AddStringToObject (root, "device_class", "battery");
     // "state_topic": "eq3_radout/status/XX:XX:XX:YY:YY:YY",
-    snprintf (buffer, sizeof (buffer), "eq3_radout/status/%s", macstr);
+    snprintf (buffer, sizeof (buffer), "%sradout/status/%s", id, macstr);
     cJSON_AddStringToObject (root, "state_topic", buffer);
     // "value_template": "{{ value_json.battery }}"
     cJSON_AddStringToObject (root, "value_template", "{{ value_json.battery }}");
