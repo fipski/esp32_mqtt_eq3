@@ -1,10 +1,11 @@
-# EQ-3 Radiator valve control application for ESP-32
+# EQ-3 Radiator valve control application for ESP-32 (for Home Assistant)
 
 ![tested on ESP-WROOM-32](https://img.shields.io/badge/tested--on-ESP--WROOM--32-brightgreen.svg)
 
 ----
 
-**This repository is a fork of <https://github.com/softypit/esp32_mqtt_eq3>. My target is to make this to be integrated easily on Home Assistant. My repect to @softypit for making such good gateway for EQ-3 valves.**
+**This repository is a fork of <https://github.com/softypit/esp32_mqtt_eq3>. 
+My target is to make this to be integrated easily on Home Assistant. My repect to @softypit for making such good gateway for EQ-3 valves.**
 
 Main changes from parent are:
 
@@ -270,12 +271,6 @@ Note: *possible incomplete list because of rebranding eq-3 thermostats*
 - Paul ([@softypit](https://github.com/softypit))
 - [@ul-gh](https://github.com/ul-gh)
 - Peter Becker ([@floyddotnet](https://github.com/floyddotnet))
-
-### Notes
-
-version 1.7 has been ported to use ESP IDF 4.4.3 and Mongoose Embedded Networking Library 7.4.
-Various tweaks and bugfixes have been applied including addition of two DNS servers for use in fixed-IP mode and a second NTP server.
-A timeout has been added to BLE operations to attempt to prevent the 'freeze-up' experienced occasionally on previous versions.
 
 ### Compiling
 
